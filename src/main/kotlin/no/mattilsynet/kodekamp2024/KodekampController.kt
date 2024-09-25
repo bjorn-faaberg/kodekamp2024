@@ -8,7 +8,8 @@ import org.springframework.web.bind.annotation.RestController
 import org.springframework.http.ResponseEntity
 
 data class RequestData(
-    val name: String
+    val type: String,
+    val location: String,
 )
 
 data class ResponseData(
@@ -42,7 +43,7 @@ class KodekampController {
         @RequestBody body: RequestData
     ): ResponseEntity<ResponseData> {
         val response = ResponseData(
-            message = "Responding!"
+            message = "Responding! from ${body.type} at ${body.location}"
         )
 
         return ResponseEntity.ok(response)

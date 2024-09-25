@@ -7,5 +7,5 @@ import org.springframework.boot.runApplication
 class Kodekamp2024Application
 
 fun main(args: Array<String>) {
-	runApplication<Kodekamp2024Application>(*args)
+    runApplication<Kodekamp2024Application>(*args)
 }
