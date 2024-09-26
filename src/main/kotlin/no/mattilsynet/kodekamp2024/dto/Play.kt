@@ -15,7 +15,7 @@ data class GameState(
 
 data class Unit(
     val y: Int,
-    val moves: Int,
+    var moves: Int,
     val maxHealth: Int,
     val attackStrength: Int,
     val id: String,
@@ -24,7 +24,7 @@ data class Unit(
     val side: String,
     val armor: Int,
     val x: Int,
-    val attacks: Int
+    var attacks: Int
 )
 
 data class BoardSize(
