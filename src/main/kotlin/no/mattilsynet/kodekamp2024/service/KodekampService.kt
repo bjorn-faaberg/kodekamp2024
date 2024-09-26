@@ -53,7 +53,61 @@ class KodekampService {
                         )
                     )
                 }
+            }
+            LOG.info("Fant ingen enemy ved siden av oss, flytter derfor på unit")
+            val nextCell = findNextCellToMoveTo(
+                occupiedCells,
+                enemyPosititions = enemyUnitsPositions,
+                unit,
+                state.boardSize
+            )
+            LOG.info("Neste celle vi flytter til: $nextCell")
+            if (moveActionsAvailable > 0 && unit.moves > 0) {
+                moveActionsAvailable--
+                unit.moves--
+                actionsList.add(
+                    PlayResponse(
+                        unit = unit.id,
+                        action = "move",
+                        x = nextCell.first,
+                        y = nextCell.second
+                    )
+                )
+                state.friendlyUnits[state.friendlyUnits.indexOf(unit)] =
+                    unit.copy(x = nextCell.first, y = nextCell.second)
             } else {
+                LOG.info("Ingen flere bevegelser igjen for enhet med id=${unit.id}")
+            }
+            LOG.info("Enhet med id=${unit.id} sin runde er over")
+        }
+
+
+        if (attackActionsAvailable + moveActionsAvailable > friendlyUnits.size) {
+            for (unit in friendlyUnits) {
+                val occupiedCells = friendlyUnits.map { it.x to it.y } + enemyUnitsPositions
+
+                LOG.info("Starter runden til enhet med id=${unit.id} som har posisjon (${unit.x}, ${unit.y})")
+                LOG.info("Antall angrep vi kan gjøre: $attackActionsAvailable")
+                LOG.info("Antall bevegelser vi kan gjøre: $moveActionsAvailable")
+
+                val enemy = isEnemyCloseToMe(state, unit)
+
+                if (enemy != null) {
+                    // Angrip
+                    LOG.info("Angriper enemy=${enemy.id} ved siden av oss")
+                    if (attackActionsAvailable > 0 && unit.attacks > 0) {
+                        attackActionsAvailable--
+                        unit.attacks--
+                        actionsList.add(
+                            PlayResponse(
+                                unit = unit.id,
+                                action = "attack",
+                                x = enemy.x,
+                                y = enemy.y
+                            )
+                        )
+                    }
+                }
                 LOG.info("Fant ingen enemy ved siden av oss, flytter derfor på unit")
                 val nextCell = findNextCellToMoveTo(
                     occupiedCells,
@@ -78,9 +132,9 @@ class KodekampService {
                 } else {
                     LOG.info("Ingen flere bevegelser igjen for enhet med id=${unit.id}")
                 }
-            }
 
-            LOG.info("Enhet med id=${unit.id} sin runde er over")
+                LOG.info("Enhet med id=${unit.id} sin runde er over")
+            }
         }
 
         if (attackActionsAvailable + moveActionsAvailable > friendlyUnits.size) {
@@ -108,31 +162,30 @@ class KodekampService {
                             )
                         )
                     }
-                } else {
-                    LOG.info("Fant ingen enemy ved siden av oss, flytter derfor på unit")
-                    val nextCell = findNextCellToMoveTo(
-                        occupiedCells,
-                        enemyPosititions = enemyUnitsPositions,
-                        unit,
-                        state.boardSize
-                    )
-                    LOG.info("Neste celle vi flytter til: $nextCell")
-                    if (moveActionsAvailable > 0 && unit.moves > 0) {
-                        moveActionsAvailable--
-                        unit.moves--
-                        actionsList.add(
-                            PlayResponse(
-                                unit = unit.id,
-                                action = "move",
-                                x = nextCell.first,
-                                y = nextCell.second
-                            )
+                }
+                LOG.info("Fant ingen enemy ved siden av oss, flytter derfor på unit")
+                val nextCell = findNextCellToMoveTo(
+                    occupiedCells,
+                    enemyPosititions = enemyUnitsPositions,
+                    unit,
+                    state.boardSize
+                )
+                LOG.info("Neste celle vi flytter til: $nextCell")
+                if (moveActionsAvailable > 0 && unit.moves > 0) {
+                    moveActionsAvailable--
+                    unit.moves--
+                    actionsList.add(
+                        PlayResponse(
+                            unit = unit.id,
+                            action = "move",
+                            x = nextCell.first,
+                            y = nextCell.second
                         )
-                        state.friendlyUnits[state.friendlyUnits.indexOf(unit)] =
-                            unit.copy(x = nextCell.first, y = nextCell.second)
-                    } else {
-                        LOG.info("Ingen flere bevegelser igjen for enhet med id=${unit.id}")
-                    }
+                    )
+                    state.friendlyUnits[state.friendlyUnits.indexOf(unit)] =
+                        unit.copy(x = nextCell.first, y = nextCell.second)
+                } else {
+                    LOG.info("Ingen flere bevegelser igjen for enhet med id=${unit.id}")
                 }
 
                 LOG.info("Enhet med id=${unit.id} sin runde er over")
