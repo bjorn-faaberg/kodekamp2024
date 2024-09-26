@@ -15,16 +15,16 @@ class KodekampService {
     }
 
     fun behandleRequest(state: GameState): List<PlayResponse> {
-        LOG.info("Behandle request")
+        LOG.info("Behandle request $state")
 
         // Implementere en metode som sjekker om vi kan angripe noen
-        val nextAttackActions = mutableListOf<PlayResponse>()
-        val nextMoveActions = mutableListOf<PlayResponse>()
 
         val friendlyUnits = state.friendlyUnits
         val enemyUnits = state.enemyUnits
 
         val enemyUnitsPositions = enemyUnits.map { it.x to it.y }
+
+        val actionsList = mutableListOf<PlayResponse>()
 
         var attackActionsAvailable: Int = state.attackActionsAvailable
         var moveActionsAvailable: Int = state.moveActionsAvailable
@@ -32,7 +32,7 @@ class KodekampService {
         for (unit in friendlyUnits) {
             val occupiedCells = friendlyUnits.map { it.x to it.y } + enemyUnitsPositions
 
-            LOG.info("Starter runden til enhet med id=${unit.id}")
+            LOG.info("Starter runden til enhet med id=${unit.id} som har posisjon (${unit.x}, ${unit.y})")
             LOG.info("Antall angrep vi kan gjøre: $attackActionsAvailable")
             LOG.info("Antall bevegelser vi kan gjøre: $moveActionsAvailable")
 
@@ -44,7 +44,7 @@ class KodekampService {
                 if (attackActionsAvailable > 0 && unit.attacks > 0) {
                     attackActionsAvailable--
                     unit.attacks--
-                    nextAttackActions.add(
+                    actionsList.add(
                         PlayResponse(
                             unit = unit.id,
                             action = "attack",
@@ -66,7 +66,7 @@ class KodekampService {
                 if (moveActionsAvailable > 0 && unit.moves > 0) {
                     moveActionsAvailable--
                     unit.moves--
-                    nextMoveActions.add(
+                    actionsList.add(
                         PlayResponse(
                             unit = unit.id,
                             action = "move",
@@ -84,38 +84,104 @@ class KodekampService {
             LOG.info("Enhet med id=${unit.id} sin runde er over")
         }
 
-        return nextAttackActions + nextMoveActions
+        if (attackActionsAvailable + moveActionsAvailable > friendlyUnits.size) {
+            for (unit in friendlyUnits) {
+                val occupiedCells = friendlyUnits.map { it.x to it.y } + enemyUnitsPositions
+
+                LOG.info("Starter runden til enhet med id=${unit.id} som har posisjon (${unit.x}, ${unit.y})")
+                LOG.info("Antall angrep vi kan gjøre: $attackActionsAvailable")
+                LOG.info("Antall bevegelser vi kan gjøre: $moveActionsAvailable")
+
+                val enemy = isEnemyNextToMe(state, unit)
+
+                if (enemy != null) {
+                    // Angrip
+                    LOG.info("Angriper enemy=${enemy.id} ved siden av oss")
+                    if (attackActionsAvailable > 0 && unit.attacks > 0) {
+                        attackActionsAvailable--
+                        unit.attacks--
+                        actionsList.add(
+                            PlayResponse(
+                                unit = unit.id,
+                                action = "attack",
+                                x = enemy.x,
+                                y = enemy.y
+                            )
+                        )
+                    }
+                } else {
+                    LOG.info("Fant ingen enemy ved siden av oss, flytter derfor på unit")
+                    val nextCell = findNextCellToMoveTo(
+                        occupiedCells,
+                        enemyPosititions = enemyUnitsPositions,
+                        unit.x,
+                        unit.y,
+                        state.boardSize
+                    )
+                    LOG.info("Neste celle vi flytter til: $nextCell")
+                    if (moveActionsAvailable > 0 && unit.moves > 0) {
+                        moveActionsAvailable--
+                        unit.moves--
+                        actionsList.add(
+                            PlayResponse(
+                                unit = unit.id,
+                                action = "move",
+                                x = nextCell.first,
+                                y = nextCell.second
+                            )
+                        )
+                        state.friendlyUnits[state.friendlyUnits.indexOf(unit)] =
+                            unit.copy(x = nextCell.first, y = nextCell.second)
+                    } else {
+                        LOG.info("Ingen flere bevegelser igjen for enhet med id=${unit.id}")
+                    }
+                }
+
+                LOG.info("Enhet med id=${unit.id} sin runde er over")
+            }
+        }
+
+        return actionsList
     }
 
     private fun isEnemyNextToMe(state: GameState, currentPlayer: Unit): Unit? {
-        return state.enemyUnits.firstOrNull { enemyUnit ->
+        var unitToReturn: Unit? = null
+        state.enemyUnits.forEach { enemyUnit ->
+            LOG.info("Enemy=${enemyUnit.id} positions: (${enemyUnit.x}, ${enemyUnit.y})")
             if (isLeftToUnit(currentPlayer, enemyUnit) ||
                 isRightToUnit(currentPlayer, enemyUnit) ||
                 isAboveUnit(currentPlayer, enemyUnit) ||
                 isBelowUnit(currentPlayer, enemyUnit)
             ) {
                 LOG.info("Fant en enemy ved siden av oss. Vår posisjon: (${currentPlayer.x}, ${currentPlayer.y}), enemy posisjon: (${enemyUnit.x}, ${enemyUnit.y})")
-                return enemyUnit
-            } else {
-                return null
+                unitToReturn = enemyUnit
             }
         }
+        return unitToReturn
     }
 
     private fun isLeftToUnit(currentPlayer: Unit, enemyUnit: Unit): Boolean {
-        return enemyUnit.x == currentPlayer.x - 1 && enemyUnit.y == currentPlayer.y
+        val isLeft = currentPlayer.x == enemyUnit.x - 1 && currentPlayer.y == enemyUnit.y
+        LOG.info("isLeftToUnit: $isLeft")
+        return isLeft
     }
 
     private fun isRightToUnit(currentPlayer: Unit, enemyUnit: Unit): Boolean {
-        return enemyUnit.x == currentPlayer.x + 1 && enemyUnit.y == currentPlayer.y
+        val isRight = currentPlayer.x == enemyUnit.x + 1 && currentPlayer.y == enemyUnit.y
+        LOG.info("isRightToUnit: $isRight")
+        return isRight
     }
 
     private fun isAboveUnit(currentPlayer: Unit, enemyUnit: Unit): Boolean {
-        return enemyUnit.x == currentPlayer.x && enemyUnit.y == currentPlayer.y - 1
+        val isAbove = currentPlayer.x == enemyUnit.x && currentPlayer.y == enemyUnit.y - 1
+        LOG.info("isAboveUnit: $isAbove")
+        return isAbove
     }
 
     private fun isBelowUnit(currentPlayer: Unit, enemyUnit: Unit): Boolean {
-        return enemyUnit.x == currentPlayer.x && enemyUnit.y == currentPlayer.y + 1
+        val isBelow = currentPlayer.x == enemyUnit.x && currentPlayer.y == enemyUnit.y + 1
+        LOG.info("isBelowUnit: $isBelow")
+        return isBelow
     }
 
     private fun findNextCellToMoveTo(
