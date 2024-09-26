@@ -24,7 +24,9 @@ data class Unit(
     val side: String,
     val armor: Int,
     val x: Int,
-    var attacks: Int
+    var attacks: Int,
+    val range: Int,
+    val isPiercing: Boolean
 )
 
 data class BoardSize(

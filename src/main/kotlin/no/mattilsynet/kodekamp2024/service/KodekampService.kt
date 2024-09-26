@@ -36,7 +36,7 @@ class KodekampService {
             LOG.info("Antall angrep vi kan gjøre: $attackActionsAvailable")
             LOG.info("Antall bevegelser vi kan gjøre: $moveActionsAvailable")
 
-            val enemy = isEnemyNextToMe(state, unit)
+            val enemy = isEnemyCloseToMe(state, unit)
 
             if (enemy != null) {
                 // Angrip
@@ -58,8 +58,7 @@ class KodekampService {
                 val nextCell = findNextCellToMoveTo(
                     occupiedCells,
                     enemyPosititions = enemyUnitsPositions,
-                    unit.x,
-                    unit.y,
+                    unit,
                     state.boardSize
                 )
                 LOG.info("Neste celle vi flytter til: $nextCell")
@@ -92,7 +91,7 @@ class KodekampService {
                 LOG.info("Antall angrep vi kan gjøre: $attackActionsAvailable")
                 LOG.info("Antall bevegelser vi kan gjøre: $moveActionsAvailable")
 
-                val enemy = isEnemyNextToMe(state, unit)
+                val enemy = isEnemyCloseToMe(state, unit)
 
                 if (enemy != null) {
                     // Angrip
@@ -114,8 +113,7 @@ class KodekampService {
                     val nextCell = findNextCellToMoveTo(
                         occupiedCells,
                         enemyPosititions = enemyUnitsPositions,
-                        unit.x,
-                        unit.y,
+                        unit,
                         state.boardSize
                     )
                     LOG.info("Neste celle vi flytter til: $nextCell")
@@ -144,16 +142,16 @@ class KodekampService {
         return actionsList
     }
 
-    private fun isEnemyNextToMe(state: GameState, currentPlayer: Unit): Unit? {
+    private fun isEnemyCloseToMe(state: GameState, myUnit: Unit): Unit? {
         var unitToReturn: Unit? = null
         state.enemyUnits.forEach { enemyUnit ->
             LOG.info("Enemy=${enemyUnit.id} positions: (${enemyUnit.x}, ${enemyUnit.y})")
-            if (isLeftToUnit(currentPlayer, enemyUnit) ||
-                isRightToUnit(currentPlayer, enemyUnit) ||
-                isAboveUnit(currentPlayer, enemyUnit) ||
-                isBelowUnit(currentPlayer, enemyUnit)
+            if (isLeftToUnit(myUnit, enemyUnit) ||
+                isRightToUnit(myUnit, enemyUnit) ||
+                isAboveUnit(myUnit, enemyUnit) ||
+                isBelowUnit(myUnit, enemyUnit)
             ) {
-                LOG.info("Fant en enemy ved siden av oss. Vår posisjon: (${currentPlayer.x}, ${currentPlayer.y}), enemy posisjon: (${enemyUnit.x}, ${enemyUnit.y})")
+                LOG.info("Fant en enemy ved siden av oss. Vår posisjon: (${myUnit.x}, ${myUnit.y}), enemy posisjon: (${enemyUnit.x}, ${enemyUnit.y})")
                 unitToReturn = enemyUnit
             }
         }
@@ -161,36 +159,67 @@ class KodekampService {
     }
 
     private fun isLeftToUnit(currentPlayer: Unit, enemyUnit: Unit): Boolean {
-        val isLeft = currentPlayer.x == enemyUnit.x - 1 && currentPlayer.y == enemyUnit.y
-        LOG.info("isLeftToUnit: $isLeft")
-        return isLeft
+        val rangeToCheck = if (isArcher(currentPlayer)) 4 else 1
+        for (i in 1..rangeToCheck) {
+            if (currentPlayer.x == enemyUnit.x - i && currentPlayer.y == enemyUnit.y) {
+                LOG.info("isLeftToUnit: true")
+                return true
+            }
+        }
+        val isRight = currentPlayer.x == enemyUnit.x - 1 && currentPlayer.y == enemyUnit.y
+        LOG.info("isLeftToUnit: $isRight")
+        return isRight
     }
 
     private fun isRightToUnit(currentPlayer: Unit, enemyUnit: Unit): Boolean {
+        val rangeToCheck = if (isArcher(currentPlayer)) 4 else 1
+        for (i in 1..rangeToCheck) {
+            if (currentPlayer.x == enemyUnit.x + i && currentPlayer.y == enemyUnit.y) {
+                LOG.info("isRightToUnit: true")
+                return true
+            }
+        }
         val isRight = currentPlayer.x == enemyUnit.x + 1 && currentPlayer.y == enemyUnit.y
         LOG.info("isRightToUnit: $isRight")
         return isRight
     }
 
     private fun isAboveUnit(currentPlayer: Unit, enemyUnit: Unit): Boolean {
+        val rangeToCheck = if (isArcher(currentPlayer)) 4 else 1
+        for (i in 1..rangeToCheck) {
+            if (currentPlayer.x == enemyUnit.x && currentPlayer.y == enemyUnit.y - i) {
+                LOG.info("isAboveUnit: true")
+                return true
+            }
+        }
         val isAbove = currentPlayer.x == enemyUnit.x && currentPlayer.y == enemyUnit.y - 1
         LOG.info("isAboveUnit: $isAbove")
         return isAbove
     }
 
     private fun isBelowUnit(currentPlayer: Unit, enemyUnit: Unit): Boolean {
+        val rangeToCheck = if (isArcher(currentPlayer)) 4 else 1
+        for (i in 1..rangeToCheck) {
+            if (currentPlayer.x == enemyUnit.x && currentPlayer.y == enemyUnit.y + i) {
+                LOG.info("isBelowUnit: true")
+                return true
+            }
+        }
         val isBelow = currentPlayer.x == enemyUnit.x && currentPlayer.y == enemyUnit.y + 1
         LOG.info("isBelowUnit: $isBelow")
         return isBelow
     }
 
+    private fun isArcher(unit: Unit) = unit.kind == "archer"
+
     private fun findNextCellToMoveTo(
         occupiedCells: List<Pair<Int, Int>>,
         enemyPosititions: List<Pair<Int, Int>>,
-        x: Int,
-        y: Int,
+        unit: Unit,
         boardSize: BoardSize
     ): Pair<Int, Int> {
+        val x = unit.x
+        val y = unit.y
         val possibleCells = listOfNotNull(
             // Opp
             if (y - 1 < 0) null else x to y - 1,
@@ -207,12 +236,14 @@ class KodekampService {
 
         LOG.info("Vår position: ($x, $y), mulige celler vi kan flytte til: $possibleCells")
 
+        if (unit.kind == "archer") {
+            return possibleCells.filterNot { occupiedCells.contains(it) }.random()
+        }
+
         return possibleCells
             .filterNot { occupiedCells.contains(it) }
             .minByOrNull { cell ->
-                enemyPosititions.minOf { enemy ->
-                    findDistance(cell, enemy)
-                }
+                enemyPosititions.minOf { enemy -> findDistance(cell, enemy) }
             } ?: (x to y)
     }
 
