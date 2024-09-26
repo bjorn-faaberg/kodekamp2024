@@ -17,72 +17,23 @@ class KodekampService {
     fun behandleRequest(state: GameState): List<PlayResponse> {
         LOG.info("Behandle request $state")
 
-        // Implementere en metode som sjekker om vi kan angripe noen
-
-        val friendlyUnits = state.friendlyUnits
-        val enemyUnits = state.enemyUnits
-
+        val friendlyUnits = sortedFriendlyUnits(state.friendlyUnits)
+        val enemyUnits = state.enemyUnits.sortedBy { it.health }
         val enemyUnitsPositions = enemyUnits.map { it.x to it.y }
-
         val actionsList = mutableListOf<PlayResponse>()
-
         var attackActionsAvailable: Int = state.attackActionsAvailable
         var moveActionsAvailable: Int = state.moveActionsAvailable
+        var totalActions = attackActionsAvailable + moveActionsAvailable
+        var counter = 20
 
-        for (unit in friendlyUnits) {
-            val occupiedCells = friendlyUnits.map { it.x to it.y } + enemyUnitsPositions
-
-            LOG.info("Starter runden til enhet med id=${unit.id} som har posisjon (${unit.x}, ${unit.y})")
-            LOG.info("Antall angrep vi kan gjøre: $attackActionsAvailable")
-            LOG.info("Antall bevegelser vi kan gjøre: $moveActionsAvailable")
-
-            val enemy = isEnemyCloseToMe(state, unit)
-
-            if (enemy != null) {
-                // Angrip
-                LOG.info("Angriper enemy=${enemy.id} ved siden av oss")
-                if (attackActionsAvailable > 0 && unit.attacks > 0) {
-                    attackActionsAvailable--
-                    unit.attacks--
-                    actionsList.add(
-                        PlayResponse(
-                            unit = unit.id,
-                            action = "attack",
-                            x = enemy.x,
-                            y = enemy.y
-                        )
-                    )
-                }
+        while (counter >= 0) {
+            LOG.info("Antall handlinger vi kan gjøre: $totalActions")
+            val actionsAvailableInFriendlyUnits = friendlyUnits.sumOf { it.moves + it.attacks }
+            LOG.info("Antall handlinger vi kan gjøre i enhetene våre: $actionsAvailableInFriendlyUnits")
+            if (actionsAvailableInFriendlyUnits == 0) {
+                break
             }
-            LOG.info("Fant ingen enemy ved siden av oss, flytter derfor på unit")
-            val nextCell = findNextCellToMoveTo(
-                occupiedCells,
-                enemyPosititions = enemyUnitsPositions,
-                unit,
-                state.boardSize
-            )
-            LOG.info("Neste celle vi flytter til: $nextCell")
-            if (moveActionsAvailable > 0 && unit.moves > 0) {
-                moveActionsAvailable--
-                unit.moves--
-                actionsList.add(
-                    PlayResponse(
-                        unit = unit.id,
-                        action = "move",
-                        x = nextCell.first,
-                        y = nextCell.second
-                    )
-                )
-                state.friendlyUnits[state.friendlyUnits.indexOf(unit)] =
-                    unit.copy(x = nextCell.first, y = nextCell.second)
-            } else {
-                LOG.info("Ingen flere bevegelser igjen for enhet med id=${unit.id}")
-            }
-            LOG.info("Enhet med id=${unit.id} sin runde er over")
-        }
 
-
-        if (attackActionsAvailable + moveActionsAvailable > friendlyUnits.size) {
             for (unit in friendlyUnits) {
                 val occupiedCells = friendlyUnits.map { it.x to it.y } + enemyUnitsPositions
 
@@ -90,114 +41,127 @@ class KodekampService {
                 LOG.info("Antall angrep vi kan gjøre: $attackActionsAvailable")
                 LOG.info("Antall bevegelser vi kan gjøre: $moveActionsAvailable")
 
-                val enemy = isEnemyCloseToMe(state, unit)
+                var enemy = getEnemyToAttack(unit, enemyUnits)
 
                 if (enemy != null) {
-                    // Angrip
-                    LOG.info("Angriper enemy=${enemy.id} ved siden av oss")
-                    if (attackActionsAvailable > 0 && unit.attacks > 0) {
-                        attackActionsAvailable--
-                        unit.attacks--
-                        actionsList.add(
-                            PlayResponse(
-                                unit = unit.id,
-                                action = "attack",
-                                x = enemy.x,
-                                y = enemy.y
-                            )
-                        )
-                    }
+                    attackActionsAvailable = attackEnemy(enemy, unit, attackActionsAvailable, actionsList)
                 }
+
                 LOG.info("Fant ingen enemy ved siden av oss, flytter derfor på unit")
-                val nextCell = findNextCellToMoveTo(
+                var nextCell = findNextCellToMoveTo(
                     occupiedCells,
                     enemyPosititions = enemyUnitsPositions,
                     unit,
-                    state.boardSize
+                    state.boardSize,
+                    enemyFound = enemy != null
                 )
-                LOG.info("Neste celle vi flytter til: $nextCell")
-                if (moveActionsAvailable > 0 && unit.moves > 0) {
-                    moveActionsAvailable--
-                    unit.moves--
-                    actionsList.add(
-                        PlayResponse(
-                            unit = unit.id,
-                            action = "move",
-                            x = nextCell.first,
-                            y = nextCell.second
-                        )
-                    )
-                    state.friendlyUnits[state.friendlyUnits.indexOf(unit)] =
-                        unit.copy(x = nextCell.first, y = nextCell.second)
-                } else {
-                    LOG.info("Ingen flere bevegelser igjen for enhet med id=${unit.id}")
+                if (nextCell != null) {
+                    LOG.info("Neste celle vi flytter til: $nextCell")
+                    moveActionsAvailable = moveUnit(moveActionsAvailable, unit, actionsList, nextCell, friendlyUnits)
                 }
 
-                LOG.info("Enhet med id=${unit.id} sin runde er over")
-            }
-        }
-
-        if (attackActionsAvailable + moveActionsAvailable > friendlyUnits.size) {
-            for (unit in friendlyUnits) {
-                val occupiedCells = friendlyUnits.map { it.x to it.y } + enemyUnitsPositions
-
-                LOG.info("Starter runden til enhet med id=${unit.id} som har posisjon (${unit.x}, ${unit.y})")
-                LOG.info("Antall angrep vi kan gjøre: $attackActionsAvailable")
-                LOG.info("Antall bevegelser vi kan gjøre: $moveActionsAvailable")
-
-                val enemy = isEnemyCloseToMe(state, unit)
+                enemy = getEnemyToAttack(unit, enemyUnits)
 
                 if (enemy != null) {
-                    // Angrip
-                    LOG.info("Angriper enemy=${enemy.id} ved siden av oss")
-                    if (attackActionsAvailable > 0 && unit.attacks > 0) {
-                        attackActionsAvailable--
-                        unit.attacks--
-                        actionsList.add(
-                            PlayResponse(
-                                unit = unit.id,
-                                action = "attack",
-                                x = enemy.x,
-                                y = enemy.y
-                            )
-                        )
-                    }
+                    attackActionsAvailable = attackEnemy(enemy, unit, attackActionsAvailable, actionsList)
                 }
-                LOG.info("Fant ingen enemy ved siden av oss, flytter derfor på unit")
-                val nextCell = findNextCellToMoveTo(
+                nextCell = findNextCellToMoveTo(
                     occupiedCells,
                     enemyPosititions = enemyUnitsPositions,
                     unit,
-                    state.boardSize
+                    state.boardSize,
+                    enemyFound = enemy != null
                 )
-                LOG.info("Neste celle vi flytter til: $nextCell")
-                if (moveActionsAvailable > 0 && unit.moves > 0) {
-                    moveActionsAvailable--
-                    unit.moves--
-                    actionsList.add(
-                        PlayResponse(
-                            unit = unit.id,
-                            action = "move",
-                            x = nextCell.first,
-                            y = nextCell.second
-                        )
-                    )
-                    state.friendlyUnits[state.friendlyUnits.indexOf(unit)] =
-                        unit.copy(x = nextCell.first, y = nextCell.second)
-                } else {
-                    LOG.info("Ingen flere bevegelser igjen for enhet med id=${unit.id}")
+                if (nextCell != null) {
+                    LOG.info("Neste celle vi flytter til: $nextCell")
+                    moveActionsAvailable = moveUnit(moveActionsAvailable, unit, actionsList, nextCell, friendlyUnits)
                 }
-
                 LOG.info("Enhet med id=${unit.id} sin runde er over")
             }
+            totalActions = attackActionsAvailable + moveActionsAvailable
+            counter--
         }
 
         return actionsList
     }
 
-    private fun isEnemyCloseToMe(state: GameState, myUnit: Unit): Unit? {
+    private fun moveUnit(
+        moveActionsAvailable: Int,
+        unit: Unit,
+        actionsList: MutableList<PlayResponse>,
+        nextCell: Pair<Int, Int>,
+        friendlyUnits: MutableList<Unit>
+    ): Int {
+        var moveActionsAvailable1 = moveActionsAvailable
+        if (moveActionsAvailable1 > 0 && unit.moves > 0) {
+            moveActionsAvailable1--
+            unit.moves--
+            actionsList.add(
+                PlayResponse(
+                    unit = unit.id,
+                    action = "move",
+                    x = nextCell.first,
+                    y = nextCell.second
+                )
+            )
+        } else {
+            LOG.info("Ingen flere bevegelser igjen for enhet med id=${unit.id}")
+        }
+        friendlyUnits.set(
+            friendlyUnits.indexOfFirst { it.id == unit.id },
+            unit.copy(x = nextCell.first, y = nextCell.second)
+        )
+        return moveActionsAvailable1
+    }
+
+    private fun attackEnemy(
+        enemy: Unit,
+        unit: Unit,
+        attackActionsAvailable: Int,
+        actionsList: MutableList<PlayResponse>
+    ): Int {
+        var attackActionsAvailable1 = attackActionsAvailable
+        LOG.info("Angriper enemy=${enemy.id} ved siden av oss")
+        var attacks = unit.attacks
+        while (attacks > 0) {
+            if (attackActionsAvailable1 > 0) {
+                attackActionsAvailable1--
+                unit.attacks--
+                actionsList.add(
+                    PlayResponse(
+                        unit = unit.id,
+                        action = "attack",
+                        x = enemy.x,
+                        y = enemy.y
+                    )
+                )
+            }
+            attacks--
+        }
+        return attackActionsAvailable1
+    }
+
+    private fun getEnemyToAttack(
+        unit: Unit,
+        enemyUnits: List<Unit>
+    ) = if (isArcher(unit)) {
+        isKnightWithinArcherRange(enemyUnits, unit) ?: isEnemyCloseToMe(enemyUnits, unit)
+    } else {
+        isEnemyCloseToMe(enemyUnits, unit)
+    }
+
+    private fun isKnightWithinArcherRange(enemies: List<Unit>, myUnit: Unit): Unit? {
+        val knights = enemies.filter { it.kind == "knight" }
+        return knights.find { findEnemyWithinFourCells(myUnit, it) }
+    }
+
+    private fun findEnemyWithinFourCells(myUnit: Unit, enemyUnit: Unit): Boolean {
+        return Math.abs(myUnit.x - enemyUnit.x) + Math.abs(myUnit.y - enemyUnit.y) <= 4
+    }
+
+    private fun isEnemyCloseToMe(enemyUnits: List<Unit>, myUnit: Unit): Unit? {
         var unitToReturn: Unit? = null
-        state.enemyUnits.forEach { enemyUnit ->
+        enemyUnits.forEach { enemyUnit ->
             LOG.info("Enemy=${enemyUnit.id} positions: (${enemyUnit.x}, ${enemyUnit.y})")
             if (isLeftToUnit(myUnit, enemyUnit) ||
                 isRightToUnit(myUnit, enemyUnit) ||
@@ -264,13 +228,15 @@ class KodekampService {
     }
 
     private fun isArcher(unit: Unit) = unit.kind == "archer"
+    private fun isWarrior(unit: Unit) = unit.kind == "warrior"
 
     private fun findNextCellToMoveTo(
         occupiedCells: List<Pair<Int, Int>>,
         enemyPosititions: List<Pair<Int, Int>>,
         unit: Unit,
-        boardSize: BoardSize
-    ): Pair<Int, Int> {
+        boardSize: BoardSize,
+        enemyFound: Boolean = false
+    ): Pair<Int, Int>? {
         val x = unit.x
         val y = unit.y
         val possibleCells = listOfNotNull(
@@ -290,7 +256,11 @@ class KodekampService {
         LOG.info("Vår position: ($x, $y), mulige celler vi kan flytte til: $possibleCells")
 
         if (unit.kind == "archer") {
-            return possibleCells.filterNot { occupiedCells.contains(it) }.random()
+            if (enemyFound) {
+                return null
+            } else {
+                return possibleCells.filterNot { occupiedCells.contains(it) }.random()
+            }
         }
 
         return possibleCells
@@ -302,5 +272,17 @@ class KodekampService {
 
     private fun findDistance(cell1: Pair<Int, Int>, cell2: Pair<Int, Int>): Int {
         return Math.abs(cell1.first - cell2.first) + Math.abs(cell1.second - cell2.second)
+    }
+
+    private fun sortedFriendlyUnits(friendlyUnits: MutableList<Unit>): MutableList<Unit> {
+        val sortedFrienlies = friendlyUnits
+            .filter { it.kind == "warrior" } +
+                friendlyUnits.filter {
+                    it.kind == "barbarian"
+                } +
+                friendlyUnits.filter {
+                    it.kind == "archer"
+                } + friendlyUnits.filter { it.kind == "knight" }
+        return sortedFrienlies.toMutableList()
     }
 }
