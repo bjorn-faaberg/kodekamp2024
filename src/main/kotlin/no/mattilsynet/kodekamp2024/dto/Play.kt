@@ -9,7 +9,7 @@ data class GameState(
     val player1: String,
     val moveActionsAvailable: Int,
     val attackActionsAvailable: Int,
-    val friendlyUnits: List<Unit>,
+    var friendlyUnits: MutableList<Unit>,
     val uuid: String
 )
 

@@ -20,6 +20,7 @@ class KodekampService {
         // Implementere en metode som sjekker om vi kan angripe noen
         val nextAttackActions = mutableListOf<PlayResponse>()
         val nextMoveActions = mutableListOf<PlayResponse>()
+
         val friendlyUnits = state.friendlyUnits
         val enemyUnits = state.enemyUnits
 
@@ -29,17 +30,22 @@ class KodekampService {
         var attackActionsAvailable: Int = state.attackActionsAvailable
         var moveActionsAvailable: Int = state.moveActionsAvailable
 
-        friendlyUnits.forEach {
-            val enemy = isEnemyNextToMe(state, it)
+        for (unit in friendlyUnits) {
+            LOG.info("Starter runden til enhet med id=${unit.id}")
+            LOG.info("Antall angrep vi kan gjøre: $attackActionsAvailable")
+            LOG.info("Antall bevegelser vi kan gjøre: $moveActionsAvailable")
+
+            val enemy = isEnemyNextToMe(state, unit)
+
             if (enemy != null) {
                 // Angrip
-                LOG.info("Angriper enemy ved siden av oss")
-                if (attackActionsAvailable > 0 && it.attacks > 0) {
+                LOG.info("Angriper enemy=${enemy.id} ved siden av oss")
+                if (attackActionsAvailable > 0 && unit.attacks > 0) {
                     attackActionsAvailable--
-                    it.attacks--
+                    unit.attacks--
                     nextAttackActions.add(
                         PlayResponse(
-                            unit = it.id,
+                            unit = unit.id,
                             action = "attack",
                             x = enemy.x,
                             y = enemy.y
@@ -47,29 +53,34 @@ class KodekampService {
                     )
                 }
             } else {
+                LOG.info("Fant ingen enemy ved siden av oss, flytter derfor på unit")
                 val nextCell = findNextCellToMoveTo(
                     occupiedCells,
                     enemyPosititions = enemyUnitsPositions,
-                    it.x,
-                    it.y,
+                    unit.x,
+                    unit.y,
                     state.boardSize
                 )
                 LOG.info("Neste celle vi flytter til: $nextCell")
-                if (moveActionsAvailable > 0 && it.moves > 0) {
+                if (moveActionsAvailable > 0 && unit.moves > 0) {
                     moveActionsAvailable--
-                    it.moves--
+                    unit.moves--
                     nextMoveActions.add(
                         PlayResponse(
-                            unit = it.id,
+                            unit = unit.id,
                             action = "move",
                             x = nextCell.first,
                             y = nextCell.second
                         )
                     )
+                    state.friendlyUnits[state.friendlyUnits.indexOf(unit)] =
+                        unit.copy(x = nextCell.first, y = nextCell.second)
                 } else {
-
+                    LOG.info("Ingen flere bevegelser igjen for enhet med id=${unit.id}")
                 }
             }
+
+            LOG.info("Enhet med id=${unit.id} sin runde er over")
         }
 
         return nextAttackActions + nextMoveActions
@@ -114,9 +125,16 @@ class KodekampService {
         boardSize: BoardSize
     ): Pair<Int, Int> {
         val possibleCells = listOfNotNull(
+            // Opp
             if (y - 1 < 0) null else x to y - 1,
+
+            // Ned
             if (y + 1 > boardSize.h - 1) null else x to y + 1,
+
+            // Venstre
             if (x - 1 < 0) null else x - 1 to y,
+
+            // Høyre
             if (x + 1 > boardSize.w - 1) null else x + 1 to y
         )
 
@@ -126,12 +144,12 @@ class KodekampService {
             .filterNot { occupiedCells.contains(it) }
             .minByOrNull { cell ->
                 enemyPosititions.minOf { enemy ->
-                    manhattanDistance(cell, enemy)
+                    findDistance(cell, enemy)
                 }
             } ?: (x to y)
     }
 
-    private fun manhattanDistance(cell1: Pair<Int, Int>, cell2: Pair<Int, Int>): Int {
+    private fun findDistance(cell1: Pair<Int, Int>, cell2: Pair<Int, Int>): Int {
         return Math.abs(cell1.first - cell2.first) + Math.abs(cell1.second - cell2.second)
     }
 }
