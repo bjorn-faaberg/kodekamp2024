@@ -25,12 +25,13 @@ class KodekampService {
         val enemyUnits = state.enemyUnits
 
         val enemyUnitsPositions = enemyUnits.map { it.x to it.y }
-        val occupiedCells = friendlyUnits.map { it.x to it.y } + enemyUnitsPositions
 
         var attackActionsAvailable: Int = state.attackActionsAvailable
         var moveActionsAvailable: Int = state.moveActionsAvailable
 
         for (unit in friendlyUnits) {
+            val occupiedCells = friendlyUnits.map { it.x to it.y } + enemyUnitsPositions
+
             LOG.info("Starter runden til enhet med id=${unit.id}")
             LOG.info("Antall angrep vi kan gjøre: $attackActionsAvailable")
             LOG.info("Antall bevegelser vi kan gjøre: $moveActionsAvailable")
