@@ -18,7 +18,7 @@ class KodekampService {
         LOG.info("Behandle request $state")
 
         val friendlyUnits = sortedFriendlyUnits(state.friendlyUnits)
-        val enemyUnits = state.enemyUnits.sortedBy { it.health }
+        val enemyUnits = state.enemyUnits.sortedBy { it.health }.toMutableList()
         val enemyUnitsPositions = enemyUnits.map { it.x to it.y }
         val actionsList = mutableListOf<PlayResponse>()
         var attackActionsAvailable: Int = state.attackActionsAvailable
@@ -44,7 +44,7 @@ class KodekampService {
                 var enemy = getEnemyToAttack(unit, enemyUnits)
 
                 if (enemy != null) {
-                    attackActionsAvailable = attackEnemy(enemy, unit, attackActionsAvailable, actionsList)
+                    attackActionsAvailable = attackEnemy(enemy, unit, attackActionsAvailable, enemyUnits, actionsList)
                 }
 
                 LOG.info("Fant ingen enemy ved siden av oss, flytter derfor på unit")
@@ -63,7 +63,7 @@ class KodekampService {
                 enemy = getEnemyToAttack(unit, enemyUnits)
 
                 if (enemy != null) {
-                    attackActionsAvailable = attackEnemy(enemy, unit, attackActionsAvailable, actionsList)
+                    attackActionsAvailable = attackEnemy(enemy, unit, attackActionsAvailable, enemyUnits, actionsList)
                 }
                 nextCell = findNextCellToMoveTo(
                     occupiedCells,
@@ -118,6 +118,7 @@ class KodekampService {
         enemy: Unit,
         unit: Unit,
         attackActionsAvailable: Int,
+        enemies: MutableList<Unit>,
         actionsList: MutableList<PlayResponse>
     ): Int {
         var attackActionsAvailable1 = attackActionsAvailable
@@ -135,6 +136,10 @@ class KodekampService {
                         y = enemy.y
                     )
                 )
+                enemies.set(
+                    enemies.indexOfFirst { it.id == enemy.id },
+                    enemy.copy(health = (enemy.health + enemy.armor) - unit.attackStrength)
+                )
             }
             attacks--
         }
@@ -146,17 +151,24 @@ class KodekampService {
         enemyUnits: List<Unit>
     ) = if (isArcher(unit)) {
         isKnightWithinArcherRange(enemyUnits, unit) ?: isEnemyCloseToMe(enemyUnits, unit)
+    } else if (isWizard(unit)) {
+        isKnightWithinWizardRange(enemyUnits, unit) ?: isEnemyCloseToMe(enemyUnits, unit)
     } else {
         isEnemyCloseToMe(enemyUnits, unit)
     }
 
     private fun isKnightWithinArcherRange(enemies: List<Unit>, myUnit: Unit): Unit? {
         val knights = enemies.filter { it.kind == "knight" }
-        return knights.find { findEnemyWithinFourCells(myUnit, it) }
+        return knights.find { findEnemyWithinFourCells(myUnit, it, 4) }
     }
 
-    private fun findEnemyWithinFourCells(myUnit: Unit, enemyUnit: Unit): Boolean {
-        return Math.abs(myUnit.x - enemyUnit.x) + Math.abs(myUnit.y - enemyUnit.y) <= 4
+    private fun isKnightWithinWizardRange(enemies: List<Unit>, myUnit: Unit): Unit? {
+        val knights = enemies.filter { it.kind == "knight" }
+        return knights.find { findEnemyWithinFourCells(myUnit, it, 3) }
+    }
+
+    private fun findEnemyWithinFourCells(myUnit: Unit, enemyUnit: Unit, cells: Int): Boolean {
+        return Math.abs(myUnit.x - enemyUnit.x) + Math.abs(myUnit.y - enemyUnit.y) < cells
     }
 
     private fun isEnemyCloseToMe(enemyUnits: List<Unit>, myUnit: Unit): Unit? {
@@ -228,7 +240,7 @@ class KodekampService {
     }
 
     private fun isArcher(unit: Unit) = unit.kind == "archer"
-    private fun isWarrior(unit: Unit) = unit.kind == "warrior"
+    private fun isWizard(unit: Unit) = unit.kind == "wizard"
 
     private fun findNextCellToMoveTo(
         occupiedCells: List<Pair<Int, Int>>,
@@ -255,7 +267,7 @@ class KodekampService {
 
         LOG.info("Vår position: ($x, $y), mulige celler vi kan flytte til: $possibleCells")
 
-        if (unit.kind == "archer") {
+        if (isArcher(unit) || isWizard(unit)) {
             if (enemyFound) {
                 return null
             } else {
@@ -282,7 +294,9 @@ class KodekampService {
                 } +
                 friendlyUnits.filter {
                     it.kind == "archer"
-                } + friendlyUnits.filter { it.kind == "knight" }
+                } + friendlyUnits.filter {
+            it.kind == "wizard"
+        } + friendlyUnits.filter { it.kind == "knight" }
         return sortedFrienlies.toMutableList()
     }
 }
